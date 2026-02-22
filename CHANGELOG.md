@@ -1,3 +1,51 @@
+# v3.0.2 - 2026/02/08 (iOS only)
+
+## Bugfixes
+
+- Fixed issue with bluetooth permissions checks not working on iOS
+- Fixed issues with not being able to test iOS builds locally
+
+# v3.0.1 - 2026/02/07 (All Platforms)
+
+## Features
+
+- (Desktop Only) Added tray icon, with options to turn off or only have tray icon on supported platforms
+- Add option to reverse output on Position/PositionWithDuration features
+- Add option to set message gap on user device configs
+
+## Bugfixes
+
+- Fixed display of app version and config file version in setting screen
+  - Broke on new settings widget upgrade in v3
+- (Mobile Only) Made "Help & About" navigation button on settings screen actually be a button
+  - I wonder how many people knew you could click on that.
+- Replace std::sync mutexes with parking_lot
+  - Should fix some crashes on Android
+- Fix double-init of rust logging causing silent background crashes
+  - Once again, mostly for Android
+- Add bluetooth permissions and status checks, engine now doesn't run if bluetooth isn't on
+  - Guess what: Android! This is actually our biggest crash there
+- Make "Send Logs To Developers" button actually work again
+  - Broke on new settings widget upgrade in v3
+- Make "Send Logs To Developers" not resend logs on every repaint
+  - Which explains why I was getting 10s of logs in and seeing spike warnings on sentry
+
+# v3.0.0 - 2026/01/31 (All Platforms)
+
+## Features
+
+- Update to Buttplug v10/Intiface Engine v4! It's done! 3.5 years of work, done!
+- New device support since Beta 4
+  - KGoal Boost
+  - Adorime Cockring
+  - Luvmazer Dildo
+  - Add Temp/LED to Joyhub devices
+  - Lovense Lush Anal
+  - Svakom protocol fixes
+  - Joyhub Dodge
+- Not much noticable in Central otherwise, because all of the work has been concentrated on
+  Buttplug. Now it's time to start working on this.
+
 # v3.0.0 Beta 4 - 2025/12/29 (Desktop Platforms)
 
 ## Bugfixes

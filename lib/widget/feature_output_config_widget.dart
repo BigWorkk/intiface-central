@@ -4,16 +4,19 @@ import 'package:flutter_multi_slider/flutter_multi_slider.dart';
 import 'package:intiface_central/bloc/device_configuration/user_device_configuration_cubit.dart';
 import 'package:intiface_central/bloc/engine/engine_control_bloc.dart';
 import 'package:intiface_central/src/rust/api/device_config.dart';
-import 'package:intiface_central/util/debouncer.dart';
+import 'package:easy_debounce/easy_debounce.dart';
 import 'package:loggy/loggy.dart';
 
 class FeatureOutputConfigWidget extends StatelessWidget {
   final ExposedUserDeviceIdentifier _deviceIdentifier;
   final ExposedServerDeviceDefinition _deviceDefinition;
 
-  const FeatureOutputConfigWidget({super.key, required deviceIdentifier, required deviceDefinition})
-    : _deviceDefinition = deviceDefinition,
-      _deviceIdentifier = deviceIdentifier;
+  const FeatureOutputConfigWidget({
+    super.key,
+    required deviceIdentifier,
+    required deviceDefinition,
+  }) : _deviceDefinition = deviceDefinition,
+       _deviceIdentifier = deviceIdentifier;
 
   void buildOutputValueTile(
     bool engineIsRunning,
@@ -22,7 +25,7 @@ class FeatureOutputConfigWidget extends StatelessWidget {
     ExposedServerDeviceFeatureOutputProperties props,
     Function(ExposedServerDeviceFeatureOutputProperties) updateFunc,
   ) {
-    Debouncer d = Debouncer(delay: const Duration(milliseconds: 30));
+    final debouncerId = 'feature-output-${type.hashCode}-${props.hashCode}';
     if (props.value == null) {
       logWarning("Null prop value, cannot render.");
       return;
@@ -36,7 +39,10 @@ class FeatureOutputConfigWidget extends StatelessWidget {
       BlocBuilder<UserDeviceConfigurationCubit, UserDeviceConfigurationState>(
         builder: (context, state) => MultiSlider(
           max: props.value!.base.$2.toDouble(),
-          values: [props.value!.user.$1.floorToDouble(), props.value!.user.$2.floorToDouble()],
+          values: [
+            props.value!.user.$1.floorToDouble(),
+            props.value!.user.$2.floorToDouble(),
+          ],
           divisions: props.value!.base.$2,
           onChanged: engineIsRunning
               ? null
@@ -47,9 +53,11 @@ class FeatureOutputConfigWidget extends StatelessWidget {
                   var v = props.value!;
                   v.user = (value[0].floor(), value[1].ceil());
                   props.value = v;
-                  d.run(() async {
-                    await updateFunc(props);
-                  });
+                  EasyDebounce.debounce(
+                    debouncerId,
+                    const Duration(milliseconds: 30),
+                    () async => await updateFunc(props),
+                  );
                 }),
         ),
       ),
@@ -63,7 +71,7 @@ class FeatureOutputConfigWidget extends StatelessWidget {
     ExposedServerDeviceFeatureOutputProperties props,
     Function(ExposedServerDeviceFeatureOutputProperties) updateFunc,
   ) {
-    Debouncer d = Debouncer(delay: const Duration(milliseconds: 30));
+    final debouncerId = 'feature-output-${type.hashCode}-${props.hashCode}';
     if (props.position == null) {
       logWarning("Null prop position, cannot render.");
       return;
@@ -77,7 +85,10 @@ class FeatureOutputConfigWidget extends StatelessWidget {
       BlocBuilder<UserDeviceConfigurationCubit, UserDeviceConfigurationState>(
         builder: (context, state) => MultiSlider(
           max: props.position!.base.$2.toDouble(),
-          values: [props.position!.user.$1.floorToDouble(), props.position!.user.$2.floorToDouble()],
+          values: [
+            props.position!.user.$1.floorToDouble(),
+            props.position!.user.$2.floorToDouble(),
+          ],
           divisions: props.position!.base.$2,
           onChanged: engineIsRunning
               ? null
@@ -88,10 +99,24 @@ class FeatureOutputConfigWidget extends StatelessWidget {
                   var v = props.position!;
                   v.user = (value[0].floor(), value[1].ceil());
                   props.position = v;
-                  d.run(() async {
-                    await updateFunc(props);
-                  });
+                  EasyDebounce.debounce(
+                    debouncerId,
+                    const Duration(milliseconds: 30),
+                    () async => await updateFunc(props),
+                  );
                 }),
+        ),
+      ),
+      BlocBuilder<UserDeviceConfigurationCubit, UserDeviceConfigurationState>(
+        builder: (context, state) => CheckboxListTile(
+          title: const Text("Reverse"),
+          value: props.reversePosition,
+          onChanged: engineIsRunning
+              ? null
+              : (value) async {
+                  props.reversePosition = value ?? false;
+                  await updateFunc(props);
+                },
         ),
       ),
     ]);
@@ -104,7 +129,11 @@ class FeatureOutputConfigWidget extends StatelessWidget {
     ExposedServerDeviceFeatureOutputProperties props,
     Function(ExposedServerDeviceFeatureOutputProperties) updateFunc,
   ) {
-    Debouncer d = Debouncer(delay: const Duration(milliseconds: 30));
+    final debouncerId = 'feature-output-${type.hashCode}-${props.hashCode}';
+    if (props.value == null || props.position == null) {
+      logWarning("Null prop value/position, cannot render.");
+      return;
+    }
     outputList.addAll([
       ListTile(
         subtitle: Text(
@@ -114,7 +143,10 @@ class FeatureOutputConfigWidget extends StatelessWidget {
       BlocBuilder<UserDeviceConfigurationCubit, UserDeviceConfigurationState>(
         builder: (context, state) => MultiSlider(
           max: props.value!.base.$2.toDouble(),
-          values: [props.value!.user.$1.floorToDouble(), props.value!.user.$2.floorToDouble()],
+          values: [
+            props.value!.user.$1.floorToDouble(),
+            props.value!.user.$2.floorToDouble(),
+          ],
           divisions: props.value!.base.$2,
           onChanged: engineIsRunning
               ? null
@@ -125,10 +157,24 @@ class FeatureOutputConfigWidget extends StatelessWidget {
                   var v = props.position!;
                   v.user = (value[0].floor(), value[1].ceil());
                   props.position = v;
-                  d.run(() async {
-                    await updateFunc(props);
-                  });
+                  EasyDebounce.debounce(
+                    debouncerId,
+                    const Duration(milliseconds: 30),
+                    () async => await updateFunc(props),
+                  );
                 }),
+        ),
+      ),
+      BlocBuilder<UserDeviceConfigurationCubit, UserDeviceConfigurationState>(
+        builder: (context, state) => CheckboxListTile(
+          title: const Text("Reverse"),
+          value: props.reversePosition,
+          onChanged: engineIsRunning
+              ? null
+              : (value) async {
+                  props.reversePosition = value ?? false;
+                  await updateFunc(props);
+                },
         ),
       ),
     ]);
@@ -144,39 +190,100 @@ class FeatureOutputConfigWidget extends StatelessWidget {
           current is ClientConnectedState ||
           current is ClientDisconnectedState,
       builder: (context, EngineControlState state) {
-        var engineIsRunning = BlocProvider.of<EngineControlBloc>(context).isRunning;
+        var engineIsRunning = BlocProvider.of<EngineControlBloc>(
+          context,
+        ).isRunning;
         List<Widget> outputList = [];
         for (var feature in _deviceDefinition.features) {
-          outputList.addAll([ListTile(title: Text("Feature: ${feature.description} - ${feature.id}"))]);
-          var userConfigCubit = BlocProvider.of<UserDeviceConfigurationCubit>(context);
+          outputList.addAll([
+            ListTile(
+              title: Text("Feature: ${feature.description} - ${feature.id}"),
+            ),
+          ]);
+          var userConfigCubit = BlocProvider.of<UserDeviceConfigurationCubit>(
+            context,
+          );
           void rangeUpdate(newOutputProps) async {
-            _deviceDefinition.updateFeatureOutputProperties(props: newOutputProps);
-            await userConfigCubit.updateDefinition(_deviceIdentifier, _deviceDefinition);
+            _deviceDefinition.updateFeatureOutputProperties(
+              props: newOutputProps,
+            );
+            await userConfigCubit.updateDefinition(
+              _deviceIdentifier,
+              _deviceDefinition,
+            );
           }
 
           if (feature.output?.vibrate != null) {
-            buildOutputValueTile(engineIsRunning, outputList, "Vibrate", feature.output!.vibrate!, rangeUpdate);
+            buildOutputValueTile(
+              engineIsRunning,
+              outputList,
+              "Vibrate",
+              feature.output!.vibrate!,
+              rangeUpdate,
+            );
           }
-          if (feature.output?.spray != null) {
-            buildOutputValueTile(engineIsRunning, outputList, "Rotate", feature.output!.rotate!, rangeUpdate);
+          if (feature.output?.rotate != null) {
+            buildOutputValueTile(
+              engineIsRunning,
+              outputList,
+              "Rotate",
+              feature.output!.rotate!,
+              rangeUpdate,
+            );
           }
           if (feature.output?.oscillate != null) {
-            buildOutputValueTile(engineIsRunning, outputList, "Oscillate", feature.output!.oscillate!, rangeUpdate);
+            buildOutputValueTile(
+              engineIsRunning,
+              outputList,
+              "Oscillate",
+              feature.output!.oscillate!,
+              rangeUpdate,
+            );
           }
           if (feature.output?.constrict != null) {
-            buildOutputValueTile(engineIsRunning, outputList, "Constrict", feature.output!.constrict!, rangeUpdate);
+            buildOutputValueTile(
+              engineIsRunning,
+              outputList,
+              "Constrict",
+              feature.output!.constrict!,
+              rangeUpdate,
+            );
           }
           if (feature.output?.temperature != null) {
-            buildOutputValueTile(engineIsRunning, outputList, "Temperature", feature.output!.temperature!, rangeUpdate);
+            buildOutputValueTile(
+              engineIsRunning,
+              outputList,
+              "Temperature",
+              feature.output!.temperature!,
+              rangeUpdate,
+            );
           }
           if (feature.output?.led != null) {
-            buildOutputValueTile(engineIsRunning, outputList, "LED", feature.output!.led!, rangeUpdate);
+            buildOutputValueTile(
+              engineIsRunning,
+              outputList,
+              "LED",
+              feature.output!.led!,
+              rangeUpdate,
+            );
           }
           if (feature.output?.spray != null) {
-            buildOutputValueTile(engineIsRunning, outputList, "Spray", feature.output!.spray!, rangeUpdate);
+            buildOutputValueTile(
+              engineIsRunning,
+              outputList,
+              "Spray",
+              feature.output!.spray!,
+              rangeUpdate,
+            );
           }
           if (feature.output?.position != null) {
-            buildOutputPositionTile(engineIsRunning, outputList, "Position", feature.output!.position!, rangeUpdate);
+            buildOutputPositionTile(
+              engineIsRunning,
+              outputList,
+              "Position",
+              feature.output!.position!,
+              rangeUpdate,
+            );
           }
           if (feature.output?.positionWithDuration != null) {
             buildOutputPositionWithDurationTile(
@@ -189,7 +296,11 @@ class FeatureOutputConfigWidget extends StatelessWidget {
           }
           if (feature.input != null) {}
         }
-        return ListView(physics: const NeverScrollableScrollPhysics(), shrinkWrap: true, children: outputList);
+        return ListView(
+          physics: const NeverScrollableScrollPhysics(),
+          shrinkWrap: true,
+          children: outputList,
+        );
       },
     );
   }

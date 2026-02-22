@@ -24,6 +24,7 @@ import 'package:intiface_central/bloc/util/error_notifier_cubit.dart';
 import 'package:intiface_central/bloc/util/gui_settings_cubit.dart';
 import 'package:intiface_central/bloc/util/navigation_cubit.dart';
 import 'package:intiface_central/bloc/util/network_info_cubit.dart';
+import 'package:intiface_central/util/bluetooth_check.dart';
 import 'package:intiface_central/util/intiface_util.dart';
 import 'package:intiface_central/util/logging.dart';
 import 'package:intiface_central/widget/body_widget.dart';
@@ -33,16 +34,22 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:pubspec_parse/pubspec_parse.dart';
 import 'package:screen_retriever/screen_retriever.dart';
 import 'package:sentry/sentry_io.dart';
+import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:intiface_central/src/rust/frb_generated.dart';
 import 'package:intiface_central/src/rust/api/util.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
-class IntifaceCentralApp extends StatelessWidget with WindowListener {
+// ignore: must_be_immutable
+class IntifaceCentralApp extends StatelessWidget with WindowListener, TrayListener {
   IntifaceCentralApp._create({required this.guiSettingsCubit});
 
   static List<bool Function(SentryEvent, {Hint? hint})> eventProcessors = [];
   final GuiSettingsCubit guiSettingsCubit;
+
+  // Stored so tray listener callbacks (outside widget tree) can access BLoC/config.
+  EngineControlBloc? _engineControlBloc;
+  IntifaceConfigurationCubit? _configCubit;
 
   // Cache the buildApp() future to prevent multiple concurrent initializations.
   // This fixes a race condition where FutureBuilder would call buildApp() on every
@@ -55,7 +62,10 @@ class IntifaceCentralApp extends StatelessWidget with WindowListener {
     return IntifaceCentralApp._create(guiSettingsCubit: guiSettingsCubit);
   }
 
-  void windowDisplayModeResize(bool useCompactDisplay, GuiSettingsCubit settingsCubit) {
+  void windowDisplayModeResize(
+    bool useCompactDisplay,
+    GuiSettingsCubit settingsCubit,
+  ) {
     const compactSize = Size(500, 175);
     if (useCompactDisplay) {
       windowManager.setMinimumSize(compactSize);
@@ -80,6 +90,96 @@ class IntifaceCentralApp extends StatelessWidget with WindowListener {
     guiSettingsCubit.setWindowPosition(windowPosition);
   }
 
+  @override
+  void onWindowClose() async {
+    var isPreventClose = await windowManager.isPreventClose();
+    if (isPreventClose) {
+      await windowManager.hide();
+    }
+  }
+
+  Future<void> _setupTray(IntifaceConfigurationCubit configCubit) async {
+    if (configCubit.trayIconMode == "none") {
+      await trayManager.destroy();
+      trayManager.removeListener(this);
+      await windowManager.setPreventClose(false);
+      return;
+    }
+
+    await trayManager.setIcon(
+      Platform.isWindows
+          ? 'assets/icons/intiface_central_icon.ico'
+          : 'assets/icons/intiface_central_icon.png',
+    );
+    await trayManager.setToolTip('Intiface Central');
+    await _updateTrayMenu();
+    trayManager.addListener(this);
+
+    // In tray_only mode, intercept window close to hide instead
+    await windowManager.setPreventClose(configCubit.trayIconMode == "tray_only");
+  }
+
+  Future<void> _updateTrayMenu() async {
+    var isRunning = _engineControlBloc?.isRunning ?? false;
+    Menu menu = Menu(
+      items: [
+        MenuItem(key: 'show_window', label: 'Show Window'),
+        MenuItem.separator(),
+        MenuItem(
+          key: 'toggle_server',
+          label: isRunning ? 'Stop Server' : 'Start Server',
+        ),
+        MenuItem.separator(),
+        MenuItem(key: 'quit', label: 'Quit'),
+      ],
+    );
+    await trayManager.setContextMenu(menu);
+  }
+
+  @override
+  void onTrayIconMouseDown() {
+    if (Platform.isMacOS) {
+      // macOS menu bar extras conventionally show menu on any click
+      trayManager.popUpContextMenu();
+    } else {
+      windowManager.show();
+      windowManager.focus();
+    }
+  }
+
+  @override
+  void onTrayIconRightMouseDown() {
+    trayManager.popUpContextMenu();
+  }
+
+  @override
+  void onTrayMenuItemClick(MenuItem menuItem) async {
+    switch (menuItem.key) {
+      case 'show_window':
+        await windowManager.show();
+        await windowManager.focus();
+      case 'toggle_server':
+        if (_engineControlBloc != null && _configCubit != null) {
+          if (_engineControlBloc!.isRunning) {
+            _engineControlBloc!.add(EngineControlEventStop());
+          } else {
+            _engineControlBloc!.add(
+              EngineControlEventStart(
+                options: await _configCubit!.getEngineOptions(),
+              ),
+            );
+          }
+        }
+      case 'quit':
+        if (_engineControlBloc?.isRunning ?? false) {
+          _engineControlBloc!.add(EngineControlEventStop());
+          await Future.delayed(const Duration(milliseconds: 1500));
+        }
+        await trayManager.destroy();
+        exit(0);
+    }
+  }
+
   Future<Widget> buildApp() async {
     var errorNotifier = ErrorNotifier();
     var multiPrinter = MultiPrinter(errorNotifier);
@@ -98,7 +198,10 @@ class IntifaceCentralApp extends StatelessWidget with WindowListener {
     // Bring up our settings repo.
     var configCubit = await IntifaceConfigurationCubit.create();
     // Set up Update/Configuration Pipe/Cubit.
-    var updateRepo = UpdateRepository(configCubit.currentNewsEtag, configCubit.currentDeviceConfigEtag);
+    var updateRepo = UpdateRepository(
+      configCubit.currentNewsEtag,
+      configCubit.currentDeviceConfigEtag,
+    );
 
     // Set up attachments to be sent with sentry events.
     if (configCubit.canUseCrashReporting) {
@@ -108,22 +211,30 @@ class IntifaceCentralApp extends StatelessWidget with WindowListener {
       var entities = (await dir.list().toList()).whereType<File>();
       Sentry.configureScope((scope) {
         scope.clearAttachments();
-        final logAttachments = entities.map((e) => IoSentryAttachment.fromFile(e));
-        final userConfigAttachment = IoSentryAttachment.fromFile(IntifacePaths.userDeviceConfigFile);
+        final logAttachments = entities.map(
+          (e) => IoSentryAttachment.fromFile(e),
+        );
+        final userConfigAttachment = IoSentryAttachment.fromFile(
+          IntifacePaths.userDeviceConfigFile,
+        );
         for (var attachment in logAttachments) {
           scope.addAttachment(attachment);
         }
         scope.addAttachment(userConfigAttachment);
       });
     } else {
-      logWarning("DSN not set, crash reporting cannot be used in this version of Intiface Central");
+      logWarning(
+        "DSN not set, crash reporting cannot be used in this version of Intiface Central",
+      );
     }
 
     if (isDesktop()) {
       // Must add this line before we work with the manager.
       await windowManager.ensureInitialized();
 
-      String windowTitle = kDebugMode ? "Intiface® Central $packageVersion DEBUG" : "Intiface® Central $packageVersion";
+      String windowTitle = kDebugMode
+          ? "Intiface® Central $packageVersion DEBUG"
+          : "Intiface® Central $packageVersion";
 
       WindowOptions windowOptions = const WindowOptions(
         //center: true,
@@ -134,6 +245,7 @@ class IntifaceCentralApp extends StatelessWidget with WindowListener {
       windowManager.setTitle(windowTitle);
 
       windowManager.addListener(this);
+      _configCubit = configCubit;
 
       // #87: Fetch our displays and make sure what we're trying to show is in bounds. If it isn't, set to top left of
       // main display.
@@ -146,9 +258,11 @@ class IntifaceCentralApp extends StatelessWidget with WindowListener {
           "Testing window position $windowPosition against ${display.name} (${display.size} ${display.visiblePosition})",
         );
         if (display.visiblePosition!.dx < windowPosition.dx &&
-            (display.visiblePosition!.dx + display.size.width) > windowPosition.dx &&
+            (display.visiblePosition!.dx + display.size.width) >
+                windowPosition.dx &&
             display.visiblePosition!.dy < windowPosition.dy &&
-            (display.visiblePosition!.dy + display.size.height) > windowPosition.dy) {
+            (display.visiblePosition!.dy + display.size.height) >
+                windowPosition.dy) {
           windowInBounds = true;
           logInfo("Window in bounds for ${display.name}");
           break;
@@ -159,7 +273,9 @@ class IntifaceCentralApp extends StatelessWidget with WindowListener {
         guiSettingsCubit.setWindowPosition(const Offset(0.0, 0.0));
       } else if (configCubit.restoreWindowLocation) {
         // Only restore the window location if the option to do so is on.
-        logInfo("Restoring window position to ${guiSettingsCubit.getWindowPosition()}");
+        logInfo(
+          "Restoring window position to ${guiSettingsCubit.getWindowPosition()}",
+        );
         await windowManager.setPosition(guiSettingsCubit.getWindowPosition());
       } else {
         logInfo("Window location not restored due to configuration settings");
@@ -196,14 +312,19 @@ class IntifaceCentralApp extends StatelessWidget with WindowListener {
           ].request();
         }
       }
-      await [Permission.bluetoothConnect, Permission.bluetoothScan].request();
+      if (Platform.isAndroid) {
+        await [Permission.bluetoothConnect, Permission.bluetoothScan].request();
+      } else if (Platform.isIOS) {
+        await Permission.bluetooth.request();
+      }
 
       if (configCubit.useForegroundProcess) {
         FlutterForegroundTask.init(
           androidNotificationOptions: AndroidNotificationOptions(
             channelId: 'notification_channel_id',
             channelName: 'Intiface Engine Notification',
-            channelDescription: 'This notification appears when the Intiface Engine foreground service is running.',
+            channelDescription:
+                'This notification appears when the Intiface Engine foreground service is running.',
             channelImportance: NotificationChannelImportance.LOW,
             priority: NotificationPriority.LOW,
           ),
@@ -228,7 +349,8 @@ class IntifaceCentralApp extends StatelessWidget with WindowListener {
 
     configCubit.currentAppVersion = packageVersion;
 
-    var deviceConfigVersion = await DeviceConfiguration.getBaseConfigFileVersion();
+    var deviceConfigVersion =
+        await DeviceConfiguration.getBaseConfigFileVersion();
     configCubit.currentDeviceConfigVersion = deviceConfigVersion;
 
     var networkCubit = await NetworkInfoCubit.create();
@@ -254,7 +376,8 @@ class IntifaceCentralApp extends StatelessWidget with WindowListener {
       if (state is DeviceConfigUpdateRetrieved) {
         configCubit.currentDeviceConfigEtag = state.version;
         // Load the file and pull internal version while we're at it.
-        var deviceConfigVersion = await DeviceConfiguration.getBaseConfigFileVersion();
+        var deviceConfigVersion =
+            await DeviceConfiguration.getBaseConfigFileVersion();
         configCubit.currentDeviceConfigVersion = deviceConfigVersion;
       }
       if (isDesktop()) {
@@ -269,8 +392,33 @@ class IntifaceCentralApp extends StatelessWidget with WindowListener {
     }
 
     var engineControlBloc = EngineControlBloc(engineRepo);
+    _engineControlBloc = engineControlBloc;
 
-    var deviceControlBloc = DeviceManagerBloc(engineControlBloc.stream, engineControlBloc.add);
+    // Set up system tray on desktop
+    if (isDesktop()) {
+      await _setupTray(configCubit);
+
+      // Update tray menu when engine state changes
+      engineControlBloc.stream.listen((state) {
+        if (state is EngineStartedState ||
+            state is EngineStoppedState ||
+            state is EngineServerCreatedState) {
+          _updateTrayMenu();
+        }
+      });
+
+      // React to tray setting changes
+      configCubit.stream.listen((event) {
+        if (event is TrayIconModeState) {
+          _setupTray(configCubit);
+        }
+      });
+    }
+
+    var deviceControlBloc = DeviceManagerBloc(
+      engineControlBloc.stream,
+      engineControlBloc.add,
+    );
 
     ///
     /// ORDER MATTERS HERE
@@ -310,7 +458,9 @@ class IntifaceCentralApp extends StatelessWidget with WindowListener {
     });
 
     if (const String.fromEnvironment('SENTRY_DSN').isNotEmpty) {
-      await crashReporting(sentryApiKey: const String.fromEnvironment('SENTRY_DSN'));
+      await crashReporting(
+        sentryApiKey: const String.fromEnvironment('SENTRY_DSN'),
+      );
     }
 
     DiscordBloc discordBloc = DiscordBloc();
@@ -376,7 +526,14 @@ class IntifaceCentralApp extends StatelessWidget with WindowListener {
     }
 
     if (configCubit.startServerOnStartup) {
-      engineControlBloc.add(EngineControlEventStart(options: await configCubit.getEngineOptions()));
+      var btProblem = await checkBluetoothReady();
+      if (btProblem != null) {
+        logWarning('Skipping autostart: $btProblem');
+      } else {
+        engineControlBloc.add(
+          EngineControlEventStart(options: await configCubit.getEngineOptions()),
+        );
+      }
     }
 
     // Make sure we only send crash reports if crash reporting is on or if the user is doing a manual log submission.
@@ -384,10 +541,14 @@ class IntifaceCentralApp extends StatelessWidget with WindowListener {
       logInfo(event.eventId);
       if (!configCubit.crashReporting) {
         if (event.tags?.containsKey("ManualLogSubmit") != true) {
-          logWarning("Crash/error received but CrashReporting is off, not sending to devs.");
+          logWarning(
+            "Crash/error received but CrashReporting is off, not sending to devs.",
+          );
           return false;
         }
-        logWarning("Manual log submission, crashReporting is off, overriding and sending to devs.");
+        logWarning(
+          "Manual log submission, crashReporting is off, overriding and sending to devs.",
+        );
       } else {
         logWarning("Submitting crash report/logs to developers.");
       }
@@ -437,7 +598,13 @@ class IntifaceCentralApp extends StatelessWidget with WindowListener {
                 title: 'Intiface Central',
                 debugShowCheckedModeBanner: false,
                 home: Scaffold(
-                  body: Center(child: Image(image: AssetImage('assets/icons/intiface_central_icon.png'))),
+                  body: Center(
+                    child: Image(
+                      image: AssetImage(
+                        'assets/icons/intiface_central_icon.png',
+                      ),
+                    ),
+                  ),
                 ),
               );
             },
@@ -453,21 +620,35 @@ class IntifaceCentralView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    logInfo(
-      "Using theme ${BlocProvider.of<IntifaceConfigurationCubit>(context).useLightTheme ? ThemeMode.light : ThemeMode.dark}",
-    );
+    final configCubit = BlocProvider.of<IntifaceConfigurationCubit>(context);
+    logInfo("Using theme mode: ${configCubit.themeModeSetting}");
     return BlocBuilder<IntifaceConfigurationCubit, IntifaceConfigurationState>(
-      buildWhen: (previous, current) => current is UseLightThemeState || current is ConfigurationResetState,
-      builder: (context, state) => MaterialApp(
-        title: 'Intiface Central',
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(brightness: Brightness.light, primarySwatch: Colors.blue, useMaterial3: true),
-        darkTheme: ThemeData(brightness: Brightness.dark, primarySwatch: Colors.blue, useMaterial3: true),
-        themeMode: BlocProvider.of<IntifaceConfigurationCubit>(context).useLightTheme
-            ? ThemeMode.light
-            : ThemeMode.dark,
-        home: const IntifaceCentralPage(),
-      ),
+      buildWhen: (previous, current) =>
+          current is ThemeModeSettingState ||
+          current is ConfigurationResetState,
+      builder: (context, state) {
+        final themeMode = switch (configCubit.themeModeSetting) {
+          "light" => ThemeMode.light,
+          "dark" => ThemeMode.dark,
+          _ => ThemeMode.system,
+        };
+        return MaterialApp(
+          title: 'Intiface Central',
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            brightness: Brightness.light,
+            primarySwatch: Colors.blue,
+            useMaterial3: true,
+          ),
+          darkTheme: ThemeData(
+            brightness: Brightness.dark,
+            primarySwatch: Colors.blue,
+            useMaterial3: true,
+          ),
+          themeMode: themeMode,
+          home: const IntifaceCentralPage(),
+        );
+      },
     );
   }
 }
@@ -479,34 +660,23 @@ class IntifaceCentralPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return SafeArea(
       child: BlocBuilder<IntifaceConfigurationCubit, IntifaceConfigurationState>(
-        buildWhen: (previous, current) => current is UseCompactDisplayState || current is ConfigurationResetState,
+        buildWhen: (previous, current) =>
+            current is UseCompactDisplayState ||
+            current is ConfigurationResetState,
         builder: (context, state) {
-          var useCompactDisplay = BlocProvider.of<IntifaceConfigurationCubit>(context).useCompactDisplay;
+          var useCompactDisplay = BlocProvider.of<IntifaceConfigurationCubit>(
+            context,
+          ).useCompactDisplay;
           List<Widget> widgets = [const ControlWidget()];
-          /*
-              if (isDesktop()) {
-                widgets.addAll([
-                  const Divider(height: 2),
-                  Row(
-                    children: [
-                      Expanded(
-                          child: IconButton(
-                              onPressed: () {
-                                BlocProvider.of<IntifaceConfigurationCubit>(context).useCompactDisplay =
-                                    !useCompactDisplay;
-                              },
-                              icon: useCompactDisplay
-                                  ? const Icon(Icons.arrow_drop_down)
-                                  : const Icon(Icons.arrow_drop_up)))
-                    ],
-                  )
-                ]);
-              }
-              */
           if (!isDesktop() || !useCompactDisplay) {
-            widgets.addAll(const [Divider(height: 2), Expanded(child: BodyWidget())]);
+            widgets.addAll(const [
+              Divider(height: 2),
+              Expanded(child: BodyWidget()),
+            ]);
           }
-          var userCubit = BlocProvider.of<UserDeviceConfigurationCubit>(context);
+          var userCubit = BlocProvider.of<UserDeviceConfigurationCubit>(
+            context,
+          );
           if (userCubit.createError != null) {
             WidgetsBinding.instance.addPostFrameCallback(
               (_) => showDialog<void>(

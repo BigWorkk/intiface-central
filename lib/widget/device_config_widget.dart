@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intiface_central/bloc/device/device_manager_bloc.dart';
 import 'package:intiface_central/bloc/device_configuration/user_device_configuration_cubit.dart';
 import 'package:intiface_central/bloc/engine/engine_control_bloc.dart';
 import 'package:loggy/loggy.dart';
-import 'package:settings_ui/settings_ui.dart';
+import 'package:flutter_settings_ui/flutter_settings_ui.dart';
 import 'package:intiface_central/src/rust/api/device_config.dart';
 
 class DeviceConfigWidget extends StatelessWidget {
@@ -15,15 +16,22 @@ class DeviceConfigWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<EngineControlBloc, EngineControlState>(
-      buildWhen: ((previous, current) => current is EngineStartedState || current is EngineStoppedState),
+      buildWhen: ((previous, current) =>
+          current is EngineStartedState || current is EngineStoppedState),
       builder: (context, state) {
-        return BlocBuilder<UserDeviceConfigurationCubit, UserDeviceConfigurationState>(
+        return BlocBuilder<
+          UserDeviceConfigurationCubit,
+          UserDeviceConfigurationState
+        >(
           builder: (context, userConfigState) {
-            var userDeviceConfigCubit = BlocProvider.of<UserDeviceConfigurationCubit>(context);
+            var userDeviceConfigCubit =
+                BlocProvider.of<UserDeviceConfigurationCubit>(context);
             return BlocBuilder<DeviceManagerBloc, DeviceManagerState>(
               builder: (context, state) {
                 List<AbstractSettingsSection> tiles = [];
-                var engineIsRunning = BlocProvider.of<EngineControlBloc>(context).isRunning;
+                var engineIsRunning = BlocProvider.of<EngineControlBloc>(
+                  context,
+                ).isRunning;
                 ExposedServerDeviceDefinition config;
                 try {
                   config = userDeviceConfigCubit.configs[identifier]!;
@@ -41,16 +49,23 @@ class DeviceConfigWidget extends StatelessWidget {
                         title: const Text("Display Name"),
                         value: Text(config.displayName ?? ""),
                         onPressed: (context) {
-                          final TextEditingController nameController = TextEditingController(
-                            text: config.displayName ?? "",
-                          );
+                          final TextEditingController nameController =
+                              TextEditingController(
+                                text: config.displayName ?? "",
+                              );
                           var nameField = TextField(
                             controller: nameController,
                             onSubmitted: (value) async {
                               Navigator.pop(context);
-                              await userDeviceConfigCubit.updateDisplayName(identifier, config, value);
+                              await userDeviceConfigCubit.updateDisplayName(
+                                identifier,
+                                config,
+                                value,
+                              );
                             },
-                            decoration: const InputDecoration(hintText: "Display Name Entry"),
+                            decoration: const InputDecoration(
+                              hintText: "Display Name Entry",
+                            ),
                           );
                           showDialog(
                             context: context,
@@ -62,11 +77,85 @@ class DeviceConfigWidget extends StatelessWidget {
                                   child: const Text('Ok'),
                                   onPressed: () async {
                                     Navigator.pop(context);
-                                    await userDeviceConfigCubit.updateDisplayName(
-                                      identifier,
-                                      config,
-                                      nameController.text,
-                                    );
+                                    await userDeviceConfigCubit
+                                        .updateDisplayName(
+                                          identifier,
+                                          config,
+                                          nameController.text,
+                                        );
+                                  },
+                                ),
+                                TextButton(
+                                  child: const Text('Cancel'),
+                                  onPressed: () {
+                                    Navigator.of(context).pop();
+                                  },
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                      SettingsTile.navigation(
+                        enabled: !engineIsRunning,
+                        title: const Text("Message Gap (ms)"),
+                        value: Text(
+                          config.messageGapMs?.toString() ?? "Default",
+                        ),
+                        onPressed: (context) {
+                          final TextEditingController gapController =
+                              TextEditingController(
+                                text: config.messageGapMs?.toString() ?? "",
+                              );
+                          showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('Message Gap (ms)'),
+                              content: TextField(
+                                controller: gapController,
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.digitsOnly,
+                                ],
+                                decoration: const InputDecoration(
+                                  hintText: "Leave empty for default",
+                                ),
+                                onSubmitted: (value) async {
+                                  Navigator.pop(context);
+                                  final parsed = int.tryParse(value);
+                                  await userDeviceConfigCubit
+                                      .updateMessageGapMs(
+                                        identifier,
+                                        config,
+                                        parsed,
+                                      );
+                                },
+                              ),
+                              actions: <Widget>[
+                                TextButton(
+                                  child: const Text('Ok'),
+                                  onPressed: () async {
+                                    Navigator.pop(context);
+                                    final parsed =
+                                        int.tryParse(gapController.text);
+                                    await userDeviceConfigCubit
+                                        .updateMessageGapMs(
+                                          identifier,
+                                          config,
+                                          parsed,
+                                        );
+                                  },
+                                ),
+                                TextButton(
+                                  child: const Text('Clear'),
+                                  onPressed: () async {
+                                    Navigator.pop(context);
+                                    await userDeviceConfigCubit
+                                        .updateMessageGapMs(
+                                          identifier,
+                                          config,
+                                          null,
+                                        );
                                   },
                                 ),
                                 TextButton(
@@ -84,7 +173,11 @@ class DeviceConfigWidget extends StatelessWidget {
                         enabled: !engineIsRunning,
                         initialValue: !config.deny,
                         onToggle: (value) async {
-                          await userDeviceConfigCubit.updateDeviceDeny(identifier, config, !value);
+                          await userDeviceConfigCubit.updateDeviceDeny(
+                            identifier,
+                            config,
+                            !value,
+                          );
                         },
                         title: const Text("Connect to this device"),
                       ),
@@ -93,7 +186,8 @@ class DeviceConfigWidget extends StatelessWidget {
                           onPressed: engineIsRunning
                               ? null
                               : () async {
-                                  await userDeviceConfigCubit.removeDeviceConfig(identifier);
+                                  await userDeviceConfigCubit
+                                      .removeDeviceConfig(identifier);
                                 },
                           child: const Text('Forget Device'),
                         ),
@@ -101,7 +195,20 @@ class DeviceConfigWidget extends StatelessWidget {
                     ],
                   ),
                 );
-                return SettingsList(sections: tiles, shrinkWrap: true);
+                final brightness = Theme.of(context).brightness;
+                final transparentBg = SettingsThemeData(
+                  settingsListBackground: Colors.transparent,
+                );
+                return SettingsList(
+                  sections: tiles,
+                  shrinkWrap: true,
+                  lightTheme: brightness == Brightness.light
+                      ? transparentBg
+                      : null,
+                  darkTheme: brightness == Brightness.dark
+                      ? transparentBg
+                      : null,
+                );
               },
             );
           },

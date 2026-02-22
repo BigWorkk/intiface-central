@@ -45,10 +45,10 @@ packages:
     dependency: "direct main"
     description:
       name: bloc
-      sha256: a2cebb899f91d36eeeaa55c7b20b5915db5a9df1b8fd4a3c9c825e22e474537d
+      sha256: a48653a82055a900b88cd35f92429f068c5a8057ae9b136d197b3d56c57efb81
       url: "https://pub.dev"
     source: hosted
-    version: "9.1.0"
+    version: "9.2.0"
   boolean_selector:
     dependency: transitive
     description:
@@ -333,38 +333,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.0.0"
-  flutter_local_notifications:
-    dependency: "direct main"
-    description:
-      name: flutter_local_notifications
-      sha256: "19ffb0a8bb7407875555e5e98d7343a633bb73707bae6c6a5f37c90014077875"
-      url: "https://pub.dev"
-    source: hosted
-    version: "19.5.0"
-  flutter_local_notifications_linux:
-    dependency: transitive
-    description:
-      name: flutter_local_notifications_linux
-      sha256: e3c277b2daab8e36ac5a6820536668d07e83851aeeb79c446e525a70710770a5
-      url: "https://pub.dev"
-    source: hosted
-    version: "6.0.0"
-  flutter_local_notifications_platform_interface:
-    dependency: transitive
-    description:
-      name: flutter_local_notifications_platform_interface
-      sha256: "277d25d960c15674ce78ca97f57d0bae2ee401c844b6ac80fcd972a9c99d09fe"
-      url: "https://pub.dev"
-    source: hosted
-    version: "9.1.0"
-  flutter_local_notifications_windows:
-    dependency: transitive
-    description:
-      name: flutter_local_notifications_windows
-      sha256: "8d658f0d367c48bd420e7cf2d26655e2d1130147bca1eea917e576ca76668aaf"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.0.3"
   flutter_loggy:
     dependency: "direct main"
     description:
@@ -397,6 +365,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.11.1"
+  flutter_settings_ui:
+    dependency: "direct main"
+    description:
+      name: flutter_settings_ui
+      sha256: dcc506fab724192594e5c232b6214a941abd6e7b5151626635b89258fadbc17c
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.0.1"
   flutter_spinkit:
     dependency: "direct main"
     description:
@@ -578,6 +554,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.11.1"
+  menu_base:
+    dependency: transitive
+    description:
+      name: menu_base
+      sha256: "820368014a171bd1241030278e6c2617354f492f5c703d7b7d4570a6b8b84405"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.1.1"
   meta:
     dependency: "direct main"
     description:
@@ -602,14 +586,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.16.12"
-  multicast_dns:
-    dependency: "direct main"
-    description:
-      name: multicast_dns
-      sha256: de72ada5c3db6fdd6ad4ae99452fe05fb403c4bb37c67ceb255ddd37d2b5b1eb
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.3.3"
   nested:
     dependency: transitive
     description:
@@ -921,14 +897,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "9.9.1"
-  settings_ui:
-    dependency: "direct main"
-    description:
-      name: settings_ui
-      sha256: d9838037cb554b24b4218b2d07666fbada3478882edefae375ee892b6c820ef3
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.0.2"
   shared_preferences:
     dependency: "direct main"
     description:
@@ -1001,6 +969,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.0"
+  shortid:
+    dependency: transitive
+    description:
+      name: shortid
+      sha256: d0b40e3dbb50497dad107e19c54ca7de0d1a274eb9b4404991e443dadb9ebedb
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.1.2"
   sky_engine:
     dependency: transitive
     description: flutter
@@ -1078,22 +1054,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.7.8"
-  timezone:
-    dependency: transitive
-    description:
-      name: timezone
-      sha256: dd14a3b83cfd7cb19e7888f1cbc20f258b8d71b54c06f79ac585f14093a287d1
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.10.1"
-  tuple:
+  tray_manager:
     dependency: "direct main"
     description:
-      name: tuple
-      sha256: a97ce2013f240b2f3807bcbaf218765b6f301c3eff91092bcfa23a039e7dd151
+      name: tray_manager
+      sha256: c5fd83b0ae4d80be6eaedfad87aaefab8787b333b8ebd064b0e442a81006035b
       url: "https://pub.dev"
     source: hosted
-    version: "2.0.2"
+    version: "0.5.2"
   typed_data:
     dependency: transitive
     description:

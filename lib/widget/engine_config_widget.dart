@@ -7,30 +7,51 @@ import 'package:intiface_central/bloc/configuration/intiface_configuration_cubit
 import 'package:intiface_central/bloc/engine/engine_control_bloc.dart';
 import 'package:intiface_central/bloc/util/gui_settings_cubit.dart';
 import 'package:intiface_central/util/intiface_util.dart';
-import 'package:settings_ui/settings_ui.dart';
+import 'package:flutter_settings_ui/flutter_settings_ui.dart';
 
-class EngineConfigWidget extends StatelessWidget {
+class EngineConfigWidget extends StatefulWidget {
   const EngineConfigWidget({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    // Unused dynamic array for storing repaint trigger logic.
-    final _ = [
-      context.select<EngineControlBloc, EngineControlState?>(
-        (bloc) => bloc.state is EngineStartedState || bloc.state is EngineStoppedState ? bloc.state : null,
-      ),
-      context.watch<IntifaceConfigurationCubit>().state,
-      context.watch<GuiSettingsCubit>().state,
-    ];
+  State<EngineConfigWidget> createState() => _EngineConfigWidgetState();
+}
 
+class _EngineConfigWidgetState extends State<EngineConfigWidget> {
+  late TextEditingController _serverNameController;
+  late TextEditingController _websocketPortController;
+
+  @override
+  void initState() {
+    super.initState();
+    _serverNameController = TextEditingController();
+    _websocketPortController = TextEditingController();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
     var cubit = BlocProvider.of<IntifaceConfigurationCubit>(context);
+    _serverNameController.text = cubit.serverName;
+    _websocketPortController.text = cubit.websocketServerPort.toString();
+  }
 
-    var configCubit = BlocProvider.of<IntifaceConfigurationCubit>(context);
-    var portController = TextEditingController();
-    portController.text = configCubit.repeaterLocalPort.toString();
+  @override
+  void dispose() {
+    _serverNameController.dispose();
+    _websocketPortController.dispose();
+    super.dispose();
+  }
 
-    var serverNameController = TextEditingController(text: cubit.serverName);
-    var websocketPortController = TextEditingController(text: cubit.websocketServerPort.toString());
+  @override
+  Widget build(BuildContext context) {
+    context.select<EngineControlBloc, EngineControlState?>(
+      (bloc) =>
+          bloc.state is EngineStartedState || bloc.state is EngineStoppedState
+          ? bloc.state
+          : null,
+    );
+    var cubit = context.watch<IntifaceConfigurationCubit>();
+    var guiSettingsCubit = context.watch<GuiSettingsCubit>();
 
     var engineIsRunning = BlocProvider.of<EngineControlBloc>(context).isRunning;
     List<AbstractSettingsSection> tiles = [];
@@ -57,18 +78,23 @@ class EngineConfigWidget extends StatelessWidget {
                 builder: (context) => AlertDialog(
                   title: const Text('Server Name'),
                   content: TextField(
-                    controller: serverNameController,
+                    controller: _serverNameController,
                     onSubmitted: (value) {
                       cubit.serverName = value;
                       Navigator.pop(context);
                     },
-                    decoration: const InputDecoration(hintText: "Server Name Entry"),
+                    decoration: const InputDecoration(
+                      hintText: "Server Name Entry",
+                    ),
                   ),
                   actions: <Widget>[
-                    TextButton(onPressed: () => Navigator.pop(context, 'Cancel'), child: const Text('Cancel')),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, 'Cancel'),
+                      child: const Text('Cancel'),
+                    ),
                     TextButton(
                       onPressed: () {
-                        cubit.serverName = serverNameController.text;
+                        cubit.serverName = _serverNameController.text;
                         Navigator.pop(context);
                       },
                       child: const Text('OK'),
@@ -89,23 +115,36 @@ class EngineConfigWidget extends StatelessWidget {
                   title: const Text('Server Port'),
                   content: TextField(
                     keyboardType: TextInputType.number,
-                    controller: websocketPortController,
-                    inputFormatters: <TextInputFormatter>[FilteringTextInputFormatter.digitsOnly],
+                    controller: _websocketPortController,
+                    inputFormatters: <TextInputFormatter>[
+                      FilteringTextInputFormatter.digitsOnly,
+                    ],
                     onSubmitted: (value) {
                       var newPort = int.tryParse(value);
-                      if (newPort != null && newPort > 1024 && newPort < 65536) {
+                      if (newPort != null &&
+                          newPort > 1024 &&
+                          newPort < 65536) {
                         cubit.websocketServerPort = newPort;
                       }
                       Navigator.pop(context);
                     },
-                    decoration: const InputDecoration(hintText: "Server Port Entry"),
+                    decoration: const InputDecoration(
+                      hintText: "Server Port Entry",
+                    ),
                   ),
                   actions: <Widget>[
-                    TextButton(onPressed: () => Navigator.pop(context, 'Cancel'), child: const Text('Cancel')),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, 'Cancel'),
+                      child: const Text('Cancel'),
+                    ),
                     TextButton(
                       onPressed: () {
-                        var newPort = int.tryParse(websocketPortController.text);
-                        if (newPort != null && newPort > 1024 && newPort < 65536) {
+                        var newPort = int.tryParse(
+                          _websocketPortController.text,
+                        );
+                        if (newPort != null &&
+                            newPort > 1024 &&
+                            newPort < 65536) {
                           cubit.websocketServerPort = newPort;
                         }
                         Navigator.pop(context);
@@ -171,19 +210,27 @@ class EngineConfigWidget extends StatelessWidget {
 
     deviceSettings.add(
       SettingsTile(
-        title: const Text("Other Device Managers are in Advanced Settings Below", textAlign: TextAlign.center),
+        title: const Text(
+          "Other Device Managers are in Advanced Settings Below",
+          textAlign: TextAlign.center,
+        ),
       ),
     );
 
-    tiles.add(SettingsSection(title: const Text("Device Managers"), tiles: deviceSettings));
+    tiles.add(
+      SettingsSection(
+        title: const Text("Device Managers"),
+        tiles: deviceSettings,
+      ),
+    );
 
     var expansionName = "advanced-settings";
-    var guiSettingsCubit = BlocProvider.of<GuiSettingsCubit>(context);
     var advancedSettingsTiles = [
       SettingsTile.switchTile(
         enabled: true,
         initialValue: guiSettingsCubit.getExpansionValue(expansionName),
-        onToggle: (value) => guiSettingsCubit.setExpansionValue(expansionName, value),
+        onToggle: (value) =>
+            guiSettingsCubit.setExpansionValue(expansionName, value),
         title: const Text("Show Advanced/Experimental Settings"),
       ),
     ];
@@ -213,7 +260,9 @@ class EngineConfigWidget extends StatelessWidget {
                     cubit.mdnsSuffix = value;
                     Navigator.pop(context);
                   },
-                  decoration: const InputDecoration(hintText: "mDNS Suffix Entry"),
+                  decoration: const InputDecoration(
+                    hintText: "mDNS Suffix Entry",
+                  ),
                 ),
               ),
             );
@@ -257,10 +306,17 @@ class EngineConfigWidget extends StatelessWidget {
     }
 
     if (guiSettingsCubit.getExpansionValue(expansionName) ?? false) {
-      tiles.add(SettingsSection(title: const Text("Advanced Device Managers"), tiles: advancedManagers));
+      tiles.add(
+        SettingsSection(
+          title: const Text("Advanced Device Managers"),
+          tiles: advancedManagers,
+        ),
+      );
     }
 
-    List<Widget> widgets = [Expanded(child: SettingsList(shrinkWrap: true, sections: tiles))];
+    List<Widget> widgets = [
+      Expanded(child: SettingsList(shrinkWrap: true, sections: tiles)),
+    ];
 
     if (engineIsRunning) {
       widgets.add(

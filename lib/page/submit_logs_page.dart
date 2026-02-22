@@ -16,7 +16,10 @@ class SendLogsPage extends StatelessWidget {
           padding: const EdgeInsets.all(10.0),
           child: Column(
             children: [
-              const Text("Send Logs to Developers", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18)),
+              const Text(
+                "Send Logs to Developers",
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
+              ),
               const SizedBox(height: 8),
               const Text(
                 "Please add your contact info (via email, discord, telegram, x/twitter, bluesky, masto, etc... SUBMISSIONS WITHOUT CONTACT INFO WILL BE IGNORED.) and any information you'd like the devs to know about your issue. Intiface Central logs and config files will be attached automatically.",
@@ -33,7 +36,10 @@ class SendLogsPage extends StatelessWidget {
                   controller: contactController,
                   minLines: 1,
                   maxLines: 1,
-                  style: const TextStyle(fontWeight: FontWeight.w400, fontSize: 12),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w400,
+                    fontSize: 12,
+                  ),
                   decoration: const InputDecoration(
                     border: InputBorder.none,
                     enabledBorder: InputBorder.none,
@@ -53,7 +59,10 @@ class SendLogsPage extends StatelessWidget {
                     controller: textController,
                     minLines: 2,
                     maxLines: null,
-                    style: const TextStyle(fontWeight: FontWeight.w400, fontSize: 12),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w400,
+                      fontSize: 12,
+                    ),
                     decoration: const InputDecoration(
                       border: InputBorder.none,
                       enabledBorder: InputBorder.none,
@@ -67,47 +76,63 @@ class SendLogsPage extends StatelessWidget {
                 child: TextButton(
                   child: const Text("Send Logs..."),
                   onPressed: () {
+                    var contactText = contactController.value.text;
+                    var messageText = textController.value.text;
+
                     showDialog<void>(
                       context: context,
-                      barrierDismissible: false, // user must tap button!
+                      barrierDismissible: false,
                       builder: (BuildContext context) {
                         var contentText = "Sending logs...";
                         var sendFinished = false;
                         var sendFailed = false;
+                        var sendStarted = false;
 
-                        var builder = StatefulBuilder(
+                        return StatefulBuilder(
                           builder: (context, setState) {
-                            Sentry.captureMessage(
-                                  """Contact Info: ${contactController.value.text}
+                            if (!sendStarted) {
+                              sendStarted = true;
+                              Sentry.captureMessage(
+                                """Contact Info: $contactText
 
 Message:
 
-${textController.value.text}""",
-                                  withScope: (scope) {
-                                    scope.setTag("ManualLogSubmit", true.toString());
-                                  },
-                                )
-                                .then((value) {
-                                  setState(() {
-                                    contentText = "Logs sent!";
-                                    sendFinished = true;
-                                  });
-                                })
-                                .onError((error, stackTrace) {
-                                  contentText = "Error sending logs, please try again.";
+$messageText""",
+                                withScope: (scope) {
+                                  scope.setTag(
+                                    "ManualLogSubmit",
+                                    true.toString(),
+                                  );
+                                },
+                              ).then((value) {
+                                setState(() {
+                                  contentText = "Logs sent!";
+                                  sendFinished = true;
+                                });
+                              }).onError((error, stackTrace) {
+                                setState(() {
+                                  contentText =
+                                      "Error sending logs, please try again.";
                                   sendFinished = true;
                                   sendFailed = true;
                                 });
+                              });
+                            }
                             return AlertDialog(
-                              //title: const Text('Sending Logs'),
-                              content: SingleChildScrollView(child: ListBody(children: <Widget>[Text(contentText)])),
+                              content: SingleChildScrollView(
+                                child: ListBody(
+                                  children: <Widget>[Text(contentText)],
+                                ),
+                              ),
                               actions: <Widget>[
                                 TextButton(
                                   onPressed: sendFinished
                                       ? () {
                                           Navigator.of(context).pop();
                                           if (!sendFailed) {
-                                            BlocProvider.of<NavigationCubit>(context).goSettings();
+                                            BlocProvider.of<NavigationCubit>(
+                                              context,
+                                            ).goSettings();
                                           }
                                         }
                                       : null,
@@ -117,8 +142,6 @@ ${textController.value.text}""",
                             );
                           },
                         );
-
-                        return builder;
                       },
                     );
                   },

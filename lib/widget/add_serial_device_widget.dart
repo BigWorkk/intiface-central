@@ -5,25 +5,59 @@ import 'package:intiface_central/bloc/device_configuration/user_device_configura
 import 'package:intiface_central/bloc/engine/engine_control_bloc.dart';
 import 'package:intiface_central/widget/stateful_dropdown_button.dart';
 
-class AddSerialDeviceWidget extends StatelessWidget {
+class AddSerialDeviceWidget extends StatefulWidget {
   const AddSerialDeviceWidget({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    /*
-    return BlocBuilder<UserDeviceConfigurationCubit, UserDeviceConfigurationState>(
-      builder: (context, state) {
-        return const Text("Whatever");
-      },
-    );
-    */
-    return BlocBuilder<UserDeviceConfigurationCubit, UserDeviceConfigurationState>(
-      builder: (context, state) {
-        var userDeviceConfigCubit = BlocProvider.of<UserDeviceConfigurationCubit>(context);
+  State<AddSerialDeviceWidget> createState() => _AddSerialDeviceWidgetState();
+}
 
-        var engineIsRunning = BlocProvider.of<EngineControlBloc>(context).isRunning;
+class _AddSerialDeviceWidgetState extends State<AddSerialDeviceWidget> {
+  late TextEditingController _portController;
+  late TextEditingController _baudController;
+  late ValueNotifier<String> _protocolNotifier;
+  late ValueNotifier<int> _dataBitsNotifier;
+  late ValueNotifier<String> _parityNotifier;
+  late ValueNotifier<int> _stopBitsNotifier;
+
+  @override
+  void initState() {
+    super.initState();
+    _portController = TextEditingController();
+    _baudController = TextEditingController();
+    _protocolNotifier = ValueNotifier("");
+    _dataBitsNotifier = ValueNotifier(8);
+    _parityNotifier = ValueNotifier("N");
+    _stopBitsNotifier = ValueNotifier(1);
+  }
+
+  @override
+  void dispose() {
+    _portController.dispose();
+    _baudController.dispose();
+    _protocolNotifier.dispose();
+    _dataBitsNotifier.dispose();
+    _parityNotifier.dispose();
+    _stopBitsNotifier.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<
+      UserDeviceConfigurationCubit,
+      UserDeviceConfigurationState
+    >(
+      builder: (context, state) {
+        var userDeviceConfigCubit =
+            BlocProvider.of<UserDeviceConfigurationCubit>(context);
+
+        var engineIsRunning = BlocProvider.of<EngineControlBloc>(
+          context,
+        ).isRunning;
         List<DataRow> rows = [];
-        for (var (protocol, serialSpecifier) in userDeviceConfigCubit.serialSpecifiers) {
+        for (var (protocol, serialSpecifier)
+            in userDeviceConfigCubit.serialSpecifiers) {
           rows.add(
             DataRow(
               cells: [
@@ -38,7 +72,10 @@ class AddSerialDeviceWidget extends StatelessWidget {
                   TextButton(
                     onPressed: engineIsRunning
                         ? null
-                        : () => userDeviceConfigCubit.removeSerialPort(protocol, serialSpecifier.port),
+                        : () => userDeviceConfigCubit.removeSerialPort(
+                            protocol,
+                            serialSpecifier.port,
+                          ),
                     child: const Text("Delete"),
                   ),
                 ),
@@ -47,41 +84,33 @@ class AddSerialDeviceWidget extends StatelessWidget {
           );
         }
 
-        // For now, we'll build these locally. This means we lose data on repaint but that's not actually an issue
-        // with this entry.
-        TextEditingController portController = TextEditingController();
-        TextEditingController baudController = TextEditingController();
         var sortedNames = userDeviceConfigCubit.protocols;
         sortedNames.sort();
-        var valueNotifier = ValueNotifier("");
         var protocolDropdown = StatefulDropdownButton<String>(
           label: "Protocol Type",
           values: sortedNames,
-          valueNotifier: valueNotifier,
+          valueNotifier: _protocolNotifier,
           enabled: !engineIsRunning,
         );
 
-        var dataBitsValueNotifier = ValueNotifier(8);
         var dataBitsDropdown = StatefulDropdownButton<int>(
           label: "Data Bits",
           values: const [8, 7, 6, 5, 4, 3, 2, 1],
-          valueNotifier: dataBitsValueNotifier,
+          valueNotifier: _dataBitsNotifier,
           enabled: !engineIsRunning,
         );
 
-        var parityValueNotifier = ValueNotifier("N");
         var parityDropdown = StatefulDropdownButton(
           label: "Parity",
           values: const ["N", "E", "O", "S", "M"],
-          valueNotifier: parityValueNotifier,
+          valueNotifier: _parityNotifier,
           enabled: !engineIsRunning,
         );
 
-        var stopBitsValueNotifier = ValueNotifier(1);
         var stopBitsDropdown = StatefulDropdownButton(
           label: "StopBits",
           values: const [1, 0],
-          valueNotifier: stopBitsValueNotifier,
+          valueNotifier: _stopBitsNotifier,
           enabled: !engineIsRunning,
         );
         return FractionallySizedBox(
@@ -94,22 +123,34 @@ class AddSerialDeviceWidget extends StatelessWidget {
                   columns: const <DataColumn>[
                     DataColumn(
                       label: Expanded(
-                        child: Text('Protocol', style: TextStyle(fontStyle: FontStyle.italic)),
+                        child: Text(
+                          'Protocol',
+                          style: TextStyle(fontStyle: FontStyle.italic),
+                        ),
                       ),
                     ),
                     DataColumn(
                       label: Expanded(
-                        child: Text('Port', style: TextStyle(fontStyle: FontStyle.italic)),
+                        child: Text(
+                          'Port',
+                          style: TextStyle(fontStyle: FontStyle.italic),
+                        ),
                       ),
                     ),
                     DataColumn(
                       label: Expanded(
-                        child: Text('Info', style: TextStyle(fontStyle: FontStyle.italic)),
+                        child: Text(
+                          'Info',
+                          style: TextStyle(fontStyle: FontStyle.italic),
+                        ),
                       ),
                     ),
                     DataColumn(
                       label: Expanded(
-                        child: Text('Delete', style: TextStyle(fontStyle: FontStyle.italic)),
+                        child: Text(
+                          'Delete',
+                          style: TextStyle(fontStyle: FontStyle.italic),
+                        ),
                       ),
                     ),
                   ],
@@ -120,23 +161,33 @@ class AddSerialDeviceWidget extends StatelessWidget {
                 widthFactor: 0.8,
                 child: Column(
                   children: [
-                    const Text("Add Serial Device", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w400)),
+                    const Text(
+                      "Add Serial Device",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
                     protocolDropdown,
                     SizedBox(
                       width: 150,
                       child: TextField(
                         enabled: !engineIsRunning,
-                        controller: portController,
-                        decoration: const InputDecoration(hintText: "Port Name"),
+                        controller: _portController,
+                        decoration: const InputDecoration(
+                          hintText: "Port Name",
+                        ),
                       ),
                     ),
                     SizedBox(
                       width: 150,
                       child: TextField(
                         enabled: !engineIsRunning,
-                        controller: baudController,
+                        controller: _baudController,
                         keyboardType: TextInputType.number,
-                        inputFormatters: <TextInputFormatter>[FilteringTextInputFormatter.digitsOnly],
+                        inputFormatters: <TextInputFormatter>[
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
                         decoration: const InputDecoration(hintText: "Baud"),
                       ),
                     ),
@@ -147,13 +198,14 @@ class AddSerialDeviceWidget extends StatelessWidget {
                       onPressed: engineIsRunning
                           ? null
                           : () {
-                              var name = portController.text;
-                              var protocol = protocolDropdown.valueNotifier.value;
+                              var name = _portController.text;
+                              var protocol =
+                                  protocolDropdown.valueNotifier.value;
                               protocolDropdown.valueNotifier.value = "";
                               userDeviceConfigCubit.addSerialPort(
                                 protocol,
                                 name,
-                                int.parse(baudController.text),
+                                int.parse(_baudController.text),
                                 dataBitsDropdown.valueNotifier.value,
                                 stopBitsDropdown.valueNotifier.value,
                                 parityDropdown.valueNotifier.value,

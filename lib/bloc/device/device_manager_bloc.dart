@@ -54,7 +54,8 @@ class DeviceManagerBloc extends Bloc<DeviceManagerEvent, DeviceManagerState> {
   final Stream<EngineControlState> _outputStream;
   final SendFunc _sendFunc;
 
-  DeviceManagerBloc(this._outputStream, this._sendFunc) : super(DeviceManagerInitialState()) {
+  DeviceManagerBloc(this._outputStream, this._sendFunc)
+    : super(DeviceManagerInitialState()) {
     on<DeviceManagerEngineStartedEvent>((event, emit) async {
       // Start our internal buttplug client.
       var connector = ButtplugBackdoorClientConnector(_outputStream, _sendFunc);
@@ -85,7 +86,9 @@ class DeviceManagerBloc extends Bloc<DeviceManagerEvent, DeviceManagerState> {
     on<DeviceManagerDeviceRemovedEvent>(((event, emit) {
       try {
         // This will throw if it doesn't find anything.
-        var deviceBloc = _devices.firstWhere((deviceBloc) => deviceBloc.device?.index == event.device.index);
+        var deviceBloc = _devices.firstWhere(
+          (deviceBloc) => deviceBloc.device?.index == event.device.index,
+        );
         _devices.remove(deviceBloc);
         emit(DeviceManagerDeviceOfflineState(deviceBloc));
       } catch (e) {
@@ -109,7 +112,13 @@ class DeviceManagerBloc extends Bloc<DeviceManagerEvent, DeviceManagerState> {
         return;
       }
       _scanning = true;
-      await _internalClient!.startScanning();
+      try {
+        await _internalClient!.startScanning();
+      } catch (e) {
+        logError("Error starting scan: $e");
+        _scanning = false;
+        return;
+      }
       emit(DeviceManagerStartScanningState());
     }));
 
@@ -118,7 +127,12 @@ class DeviceManagerBloc extends Bloc<DeviceManagerEvent, DeviceManagerState> {
         return;
       }
       _scanning = false;
-      await _internalClient!.stopScanning();
+      try {
+        await _internalClient!.stopScanning();
+      } catch (e) {
+        logError("Error stopping scan: $e");
+        return;
+      }
       emit(DeviceManagerStopScanningState());
     }));
   }

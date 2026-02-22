@@ -1,6 +1,5 @@
 import 'package:bloc/bloc.dart';
 import 'package:buttplug/buttplug.dart';
-import 'package:loggy/loggy.dart';
 
 abstract class DeviceInputState {}
 
@@ -18,7 +17,8 @@ class DeviceSubscribeSensorEvent {}
 
 class DeviceSubscribeSensorEventSubscribe extends DeviceSubscribeSensorEvent {}
 
-class DeviceSubscribeSensorEventUnsubscribe extends DeviceSubscribeSensorEvent {}
+class DeviceSubscribeSensorEventUnsubscribe
+    extends DeviceSubscribeSensorEvent {}
 
 abstract class DeviceInputBloc<T> extends Bloc<T, DeviceInputState> {
   final ButtplugClientDevice _device;
@@ -27,13 +27,23 @@ abstract class DeviceInputBloc<T> extends Bloc<T, DeviceInputState> {
   final InputType inputType;
   int _currentData = 0;
 
-  DeviceInputBloc(this._device, this.descriptor, this.sensorRange, this.inputType) : super(DeviceInputStateInitial());
+  DeviceInputBloc(
+    this._device,
+    this.descriptor,
+    this.sensorRange,
+    this.inputType,
+  ) : super(DeviceInputStateInitial());
 
   int get currentData => _currentData;
 }
 
 class InputReadBloc extends DeviceInputBloc<DeviceInputReadEvent> {
-  InputReadBloc(super.device, super.descriptor, super.sensorRange, super.inputType) {
+  InputReadBloc(
+    super.device,
+    super.descriptor,
+    super.sensorRange,
+    super.inputType,
+  ) {
     on<DeviceInputReadEvent>(((event, emit) async {
       var newData = await _device.battery();
       if (_currentData != newData) {
